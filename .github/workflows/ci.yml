@@ -1,0 +1,140 @@
+name: AppLens CI
+
+on:
+  push:
+    branches: [main, "codex/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: "0"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  native:
+    name: Build Windows x64 native artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install isolated CI cross-compiler
+        run: sudo apt-get update && sudo apt-get install -y g++-mingw-w64-x86-64
+      - run: node scripts/build-windows-native.mjs
+      - run: node scripts/verify-windows-native-artifact.mjs
+      - name: Archive native component
+        run: |
+          mkdir -p .cache/release
+          cd native/windows/build
+          zip ../../../.cache/release/applens-windows-x64-native.zip manifest.json rea-windows-x64.node
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-native
+          path: native/windows/build/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-zip
+          path: .cache/release/applens-windows-x64-native.zip
+          retention-days: 14
+
+  core:
+    name: Core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build:cached
+      - run: npm run check:fast
+      - run: npm run format:check
+      - run: npm run test:prepare
+      - run: npm run test:fast -- --reporter=json --outputFile=.cache/core-tests.json
+      - name: Verify relocated installers and checker configuration
+        run: npm exec -- vitest run --project boundary tests/boundary/filesystem/studentInstaller.test.ts tests/boundary/filesystem/staticCheckReports.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-tests-${{ matrix.os }}
+          path: .cache/core-tests.json
+
+  windows:
+    name: Windows analysis and packaging
+    needs: native
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-native
+          path: native/windows/build
+      - run: npm ci --ignore-scripts
+      - run: npm run build:cached
+      - run: npm run verify:windows-native:artifact
+      - run: npm run verify:windows-native
+      - name: Verify Windows PowerShell source installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .cache -Force | Out-Null
+          Compress-Archive -Path native/windows/build/manifest.json,native/windows/build/rea-windows-x64.node -DestinationPath .cache/native-installer-test.zip
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./install/install.ps1 -NativeArchive .cache/native-installer-test.zip -SkipDependencies
+      - run: npm run test:windows -- --reporter=json --outputFile=.cache/windows-tests.json
+      - run: npm run verify:windows:smoke
+      - run: New-Item -ItemType Directory -Path .cache/release -Force
+      - run: npm pack --pack-destination .cache/release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-validation
+          path: |
+            .cache/windows-tests.json
+            .cache/windows-smoke-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-lens-package
+          path: .cache/release/*.tgz
+
+  release:
+    name: Publish verified release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [core, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-native-zip
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-lens-package
+          path: release-assets
+      - name: Publish versioned assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --notes-file "docs/releases/${GITHUB_REF_NAME}.md" --title "AppLens $GITHUB_REF_NAME"
