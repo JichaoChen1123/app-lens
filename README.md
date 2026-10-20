@@ -5,15 +5,29 @@
 AppLens 是本地运行的软件分析工具箱，提供命令行和 MCP 两种入口。
 用它查看应用的文件结构、模块依赖、接口与数据流，并保留可追溯的证据。
 
-[快速开始](#windows-快速开始) · [连接 AI 助手](#连接-ai-助手) · [常见问题](#常见问题) · [下载 Release](https://github.com/JichaoChen1123/app-lens/releases/latest)
+[快速开始](#windows-快速开始) · [怎么用](#怎么用) · [能拆什么](#能拆什么) · [常用指令](#常用指令) · [连接 AI 助手](#连接-ai-助手) · [常见问题](#常见问题) · [下载 Release](https://github.com/JichaoChen1123/app-lens/releases/latest)
 
-## 能做什么
+## 能拆什么
 
-- 静态分析 JavaScript / Electron 目录与 ASAR，梳理模块和跨进程通信。
-- 读取 .NET 程序集、类型、方法、调用关系和 Windows PE 资源。
-- 对接 Ghidra / Hopper / IDA、浏览器、安卓等分析工具；具体功能需要对应环境。
-- 追踪功能、比较版本、导入导出证据，明确结果的范围与未知项。
-- 通过 MCP 接入支持该协议的 AI 助手；AppLens 本身不提供模型额度。
+| 分析对象 | 可以查看什么 | 所需环境 |
+| --- | --- | --- |
+| JavaScript 项目、前端构建目录、ASAR | 模块、入口、静态依赖、调用与数据流线索 | 完成基础安装；Windows 使用配套原生组件 |
+| Electron / JavaScript 桌面应用 | 页面与脚本、预加载、可识别的 IPC 和原生能力边界 | 静态分析无需 Ghidra；运行态观察需额外连接目标 |
+| Windows EXE / DLL 的 PE 资源 | 资源目录、图标组关联、数据范围与哈希 | 不需要额外反编译引擎 |
+| .NET 程序集 | 程序集身份、类型、方法签名、CIL 与声明的原生调用 | 静态元数据读取无需加载目标程序集 |
+| Go 可执行文件 | 内嵌的编译器、模块与构建设置信息 | 支持的 ELF、PE 或薄 Mach-O 文件，无需运行目标 |
+| Flutter APK | 构建标识、ABI、库摘要及支持布局下的部分 Dart AOT 结构 | 基础识别不需要反编译引擎；不等于恢复完整 Dart 源码 |
+| 浏览器里打开的网站 | 页面、脚本、网络记录及静态代码线索 | 受支持的 Chromium 浏览器与可连接的调试端点 |
+| Android APK | 包信息、权限声明、类、方法与引用 | JADX 引擎 JAR 与完整 JDK；设备操作另需 ADB 和明确目标 |
+| 原生可执行文件的函数逻辑 | 反编译、调用关系、引用与函数级分析 | 配置适用的 Ghidra、Hopper 或 IDA；受系统与架构限制 |
+| macOS / Apple 应用产物 | 支持格式的包结构、Mach-O、配置与资源 | 部分基础解析可独立使用；macOS 专用工具需在对应系统运行 |
+
+同一个软件可能同时包含 Web 页面、原生库和多种资源，通常需要组合分析。
+**识别文件格式、恢复静态结构和观察运行行为是不同层次**，结果会保留证据位置、覆盖范围和无法确认的部分。
+
+外部引擎与平台配置见 [安装与配置](docs/installation.md)；
+[Android 分析](docs/android-analysis.md)、[.NET 分析](docs/managed-code-analysis.md)、
+[Flutter 构建识别](docs/flutter-analysis.md) 提供各自的使用范围。
 
 ## Windows 快速开始
 
@@ -59,6 +73,64 @@ npm run verify:windows:smoke
 ```powershell
 .\install\applens.cmd setup --client codex --skill=false --dry-run
 ```
+
+## 怎么用
+
+接入 MCP 并重新打开 AI 助手后，直接说明 **“用 AppLens”＋目标路径＋想弄清的问题**。
+可以从整体结构开始，再追问某个功能；不需要先记住所有命令。
+
+| 想弄清的问题 | 可以这样提问 |
+| --- | --- |
+| 软件有哪些组成部分 | 用 AppLens 检查 `C:\apps\Example`，整理程序入口、业务模块和依赖，说明各项判断的依据。 |
+| 界面怎样调用后台 | 用 AppLens 分析 `C:\apps\Example\resources\app.asar`，追踪页面、预加载脚本和 IPC 之间的关系，标出未解析的动态调用。 |
+| 一段功能逻辑在哪里 | 用 AppLens 查看 `C:\projects\demo`，定位输入校验和计算规则，给出相关文件、函数与代码位置。 |
+| EXE 中有哪些资源 | 用 AppLens 检查 `C:\apps\Example\Example.exe` 的 PE 资源，列出资源类型、图标关联和文件摘要。 |
+| Android 应用声明了什么权限 | 用 AppLens 检查 `C:\targets\Example.apk`，列出权限和主要组件；先确认 Android 分析环境可用。 |
+| 两个版本有什么变化 | 用 AppLens 比较 `C:\targets\v1\app.asar` 与 `C:\targets\v2\app.asar`，区分文件变化、静态关系变化和仍需验证的行为差异。 |
+| 整理一份能复查的报告 | 根据这次 AppLens 分析，按模块解释结构和功能，将直接证据、合理推断和未知项分开，并附出处。 |
+
+一般会按这样的顺序推进：
+
+```text
+确认目标与环境 → 盘点文件和组件 → 选择相关代码或工具 → 追踪具体问题 → 整理结论与证据
+```
+
+拿到初步结果后，可以继续追问：
+
+> 这个结论在哪个文件里？还有哪些条件没有确认？如果自己实现同类功能，可以怎样设计？
+
+基础静态分析不执行目标代码。涉及启动程序、连接运行中的进程、浏览器或设备时，应先明确操作目标和范围。
+源码恢复与功能实现建议也会区分：**能够解释同类功能怎样实现，不等于已经还原原软件全部源码。**
+
+## 常用指令
+
+以下命令在 **源码安装的 `app-lens` 根目录**执行。使用 Release 完整包按发布页安装时，
+将 `.\install\applens.cmd` 换成对应的 `.\applens-local\node_modules\.bin\applens.cmd`。
+
+| 命令 | 用途 |
+| --- | --- |
+| `.\install\applens.cmd --version` | 查看 AppLens 版本 |
+| `.\install\applens.cmd --help` | 查看可用命令 |
+| `.\install\applens.cmd doctor --client codex --format json` | 检查 Codex 注册信息和本机运行条件，不代替实际连接验证 |
+| `.\install\applens.cmd providers --format json` | 查看分析引擎的配置与可用状态 |
+| `.\install\applens.cmd capabilities --format json` | 查看能力与可能产生的操作影响 |
+| `.\install\applens.cmd setup --client codex --skill=false --dry-run` | 预览 Codex 接入计划，不修改配置 |
+| `.\install\applens.cmd setup --client codex --skill=false` | 按交互提示配置 Codex MCP 接入 |
+| `.\install\applens.cmd analyze-javascript-application "C:\targets\app.asar" --format json` | 静态分析 JavaScript / Electron / ASAR |
+| `.\install\applens.cmd inspect-pe-resources "C:\targets\Example.exe" --format json` | 检查 EXE / DLL 的 PE 资源 |
+| `.\install\applens.cmd inspect-managed-artifact "C:\targets\Assembly.dll" --format json` | 查看 .NET 程序集身份和元数据概览 |
+
+查看某条命令的参数，在它后面加 `--help`。例如，只分析包内指定脚本，并将结果保存为 JSON：
+
+```powershell
+.\install\applens.cmd analyze-javascript-application "C:\targets\app.asar" --help
+
+.\install\applens.cmd analyze-javascript-application "C:\targets\app.asar" --source-path "main.js" --format json |
+  Out-File -FilePath .\analysis.json -Encoding utf8
+```
+
+`--source-path` 必须使用包内实际存在的相对路径；选中的文件不包含隐式依赖。
+更新步骤见下方 [常见问题](#常见问题)，按源码或 Release 安装方式操作。
 
 ## 支持边界
 
