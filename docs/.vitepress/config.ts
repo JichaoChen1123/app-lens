@@ -1,0 +1,92 @@
+import { defineConfig } from "vitepress";
+
+export default defineConfig({
+  title: "AppLens 软件透视",
+  description:
+    "Reverse engineer binaries, applications, and runtime behavior with one CLI and MCP server.",
+  lang: "en-US",
+  base: "/applens/",
+  themeConfig: {
+    nav: [
+      { text: "Get started", link: "/installation" },
+      { text: "Reference", link: "/mcp-contracts" },
+    ],
+    sidebar: [
+      {
+        text: "Getting started",
+        items: [
+          { text: "Installation and setup", link: "/installation" },
+          { text: "Client configuration", link: "/client-configuration" },
+          { text: "CLI and Evidence", link: "/cli" },
+          { text: "Agent prompts", link: "/mcp-prompts" },
+        ],
+      },
+      {
+        text: "Investigation guides",
+        items: [
+          { text: "Native binaries", link: "/native-investigation" },
+          { text: "Go build metadata", link: "/go-binaries" },
+          {
+            text: "JavaScript and Electron",
+            link: "/javascript-artifact-reconstruction",
+          },
+          {
+            text: "JavaScript workflows",
+            link: "/javascript-application-workflows",
+          },
+          { text: "Browser observation", link: "/browser-observation" },
+          {
+            text: "Web network captures",
+            link: "/web-network-captures",
+          },
+          { text: "Electron observation", link: "/electron-observation" },
+          { text: "Process capture", link: "/process-capture" },
+          { text: ".NET assemblies", link: "/managed-code-analysis" },
+          { text: "Android applications", link: "/android-analysis" },
+          { text: "Apple applications", link: "/apple-application-analysis" },
+          { text: "Firmware", link: "/firmware-analysis" },
+          { text: "SQLite databases", link: "/sqlite-databases" },
+          { text: "Packet captures", link: "/packet-captures" },
+          { text: "Signal recordings", link: "/signal-recordings" },
+        ],
+      },
+      {
+        text: "Provider guides",
+        collapsed: true,
+        items: [
+          { text: "IDA", link: "/ida-provider" },
+          { text: "Ghidra on Windows", link: "/windows-ghidra-p0" },
+          { text: "Ghidra DOS analysis", link: "/ghidra-dos" },
+          { text: "Ghidra raw binary", link: "/raw-binary" },
+          { text: "Ghidra NativeAOT", link: "/ghidra-nativeaot" },
+          { text: "Ghidra semantics", link: "/ghidra-provider" },
+        ],
+      },
+      {
+        text: "Reference and development",
+        collapsed: true,
+        items: [
+          { text: "MCP contracts", link: "/mcp-contracts" },
+          { text: "Tool design", link: "/tool-design" },
+          { text: "Testing", link: "/testing" },
+          { text: "Client verification", link: "/client-verification" },
+          {
+            text: "Reconstruction readiness",
+            link: "/reconstruction-readiness",
+          },
+        ],
+      },
+    ],
+    search: { provider: "local" },
+    socialLinks: [
+      { icon: "github", link: "https://github.com/JichaoChen1123/app-lens" },
+    ],
+    editLink: {
+      pattern:
+        "https://github.com/JichaoChen1123/app-lens/edit/main/docs/:path",
+    },
+    footer: {
+      message: "Released under the MIT License.",
+    },
+  },
+});
